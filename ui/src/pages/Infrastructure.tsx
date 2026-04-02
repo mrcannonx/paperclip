@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { EmptyState } from "../components/EmptyState";
-import { Server, ExternalLink, RefreshCw, Circle, Smartphone, Globe, HardDrive, ChevronDown } from "lucide-react";
+import { Server, ExternalLink, RefreshCw, Circle, Smartphone, Globe, HardDrive, ChevronDown, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ interface Service {
   slug: string;
   name: string;
   url: string;
-  type: "ios" | "saas" | "infra" | "web";
+  type: "ios" | "saas" | "infra" | "web" | "servcall";
   status: "live" | "active" | "failed" | "unknown";
   description?: string;
 }
@@ -31,6 +31,38 @@ const INFRA_SERVICES: Service[] = [
   { slug: "auth", name: "Authentik", url: "https://auth.aiappnation.com", type: "infra", status: "live", description: "Identity & SSO provider" },
   { slug: "automation", name: "n8n", url: "https://automation.aiappnation.com", type: "infra", status: "live", description: "Workflow automation" },
 ];
+
+/* ------------------------------------------------------------------ */
+/*  ServCall services                                                  */
+/* ------------------------------------------------------------------ */
+
+const SERVCALL_SERVICES: Service[] = [
+  { slug: "servcall-web", name: "ServCall Web", url: "https://servcall.ai", type: "servcall", status: "live", description: "Main marketing & app site" },
+  { slug: "servcall-app", name: "ServCall App", url: "https://app.servcall.ai", type: "servcall", status: "live", description: "Dashboard & workspace portal" },
+  { slug: "servcall-api", name: "ServCall API", url: "https://api.servcall.ai", type: "servcall", status: "live", description: "Backend API (FastAPI)" },
+  { slug: "servcall-voice", name: "ServCall Voice", url: "https://voice.servcall.ai", type: "servcall", status: "live", description: "Retell voice agent proxy" },
+  { slug: "servcall-mikes", name: "Mikes Roofing", url: "https://mikes-roofing.servcall.ai", type: "servcall", status: "live", description: "Provisioned site — Roofing" },
+];
+
+const SERVCALL_API = "https://api.servcall.ai";
+
+async function fetchServCallSites(): Promise<Service[]> {
+  try {
+    const res = await fetch(`${SERVCALL_API}/public/sites`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data as Array<Record<string, unknown>>).map((site) => ({
+      slug: `servcall-${site.site_slug}`,
+      name: (site.business_name ?? site.name) as string,
+      url: `https://${site.site_slug}.servcall.ai`,
+      type: "servcall" as const,
+      status: "live" as const,
+      description: `Provisioned site — ${(site.trade_type as string) ?? "Business"}`,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Factory API fetch                                                  */
@@ -72,11 +104,12 @@ async function checkHealth(url: string): Promise<boolean> {
 /*  Filter pills                                                       */
 /* ------------------------------------------------------------------ */
 
-type FilterType = "all" | "ios" | "saas" | "infra" | "web";
+type FilterType = "all" | "ios" | "saas" | "infra" | "web" | "servcall";
 
 const FILTERS: { value: FilterType; label: string; icon: typeof Globe }[] = [
   { value: "all", label: "All", icon: Server },
   { value: "infra", label: "Infrastructure", icon: HardDrive },
+  { value: "servcall", label: "ServCall", icon: Phone },
   { value: "ios", label: "iOS", icon: Smartphone },
   { value: "saas", label: "SaaS", icon: Globe },
 ];
@@ -109,6 +142,7 @@ function TypeBadge({ type }: { type: Service["type"] }) {
     saas: { label: "SaaS", className: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
     infra: { label: "Infra", className: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
     web: { label: "Web", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+    servcall: { label: "ServCall", className: "bg-pink-500/10 text-pink-600 dark:text-pink-400" },
   };
   const c = config[type] ?? config.web;
   return (
@@ -168,16 +202,29 @@ export function Infrastructure() {
     setBreadcrumbs([{ label: "Infrastructure" }]);
   }, [setBreadcrumbs]);
 
-  // Fetch factory apps on mount
+  // Fetch factory apps + servcall sites on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const apps = await fetchFactoryApps();
+        const [apps, dynamicSites] = await Promise.all([fetchFactoryApps(), fetchServCallSites()]);
         if (!cancelled) {
-          // Merge: infra first, then factory apps (deduplicated)
-          const infraSlugs = new Set(INFRA_SERVICES.map((s) => s.slug));
-          const merged = [...INFRA_SERVICES, ...apps.filter((a) => !infraSlugs.has(a.slug))];
+          // Merge: infra first, then servcall, then factory apps (deduplicated)
+          const knownSlugs = new Set([
+            ...INFRA_SERVICES.map((s) => s.slug),
+            ...SERVCALL_SERVICES.map((s) => s.slug),
+          ]);
+          // Merge dynamic servcall sites that aren't already in the static list
+          const servcallSlugs = new Set(SERVCALL_SERVICES.map((s) => s.slug));
+          const newSites = dynamicSites.filter((s) => !servcallSlugs.has(s.slug));
+          const allServCall = [...SERVCALL_SERVICES, ...newSites];
+          // Add all servcall slugs to known
+          for (const s of allServCall) knownSlugs.add(s.slug);
+          const merged = [
+            ...INFRA_SERVICES,
+            ...allServCall,
+            ...apps.filter((a) => !knownSlugs.has(a.slug)),
+          ];
           setServices(merged);
         }
       } finally {
