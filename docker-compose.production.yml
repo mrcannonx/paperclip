@@ -1,0 +1,31 @@
+services:
+  paperclip:
+    build: .
+    container_name: paperclip
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3100:3100"
+    environment:
+      - PORT=3100
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgres://factory:${POSTGRES_PASSWORD}@postgres:5432/paperclip
+      - PAPERCLIP_HOME=/paperclip
+      - PAPERCLIP_DEPLOYMENT_MODE=authenticated
+      - PAPERCLIP_DEPLOYMENT_EXPOSURE=private
+      - PAPERCLIP_PUBLIC_URL=https://paperclip.aiappnation.com
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - SERVE_UI=true
+      - NODE_ENV=production
+      - PAPERCLIP_ALLOWED_HOSTNAMES=paperclip,paperclip.aiappnation.com
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+    volumes:
+      - paperclip-data:/paperclip
+    networks:
+      - ai-factory_factory_net
+
+volumes:
+  paperclip-data:
+
+networks:
+  ai-factory_factory_net:
+    external: true
