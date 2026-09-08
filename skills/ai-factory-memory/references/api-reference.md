@@ -125,7 +125,7 @@ curl -s -X POST "$AI_FACTORY_API_URL/v1/sessions" \
   -H "Content-Type: application/json" \
   -d '{
     "summary": "Built ai-factory-memory Paperclip skill. Created SKILL.md and API reference.",
-    "project_path": "/Users/cannon/Downloads/LOCAL_APPS/paperclip",
+    "project_path": "/Users/cannon/Downloads/LOCAL_APPS/KILLED_PROJECTS/paperclip",
     "tasks_completed": [
       "Created skill SKILL.md with heartbeat integration",
       "Created API reference documentation"
